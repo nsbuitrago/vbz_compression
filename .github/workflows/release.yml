@@ -1,0 +1,321 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Linux: .deb + .tar.gz
+  # ─────────────────────────────────────────────────────────────────────────────
+  build-plugin-linux:
+    name: Plugin (Linux)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake libhdf5-dev libzstd-dev dpkg lsb-release
+
+      # ── .deb ──────────────────────────────────────────────────────────────
+      - name: Configure (DEB)
+        run: |
+          cmake -S . -B build-deb \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DENABLE_CONAN=OFF \
+            -DENABLE_PYTHON=OFF \
+            -DENABLE_PERF_TESTING=OFF \
+            -DENABLE_PACKAGING=ON \
+            -DVBZ_BUILD_ARCHIVE=OFF
+
+      - name: Build (DEB)
+        run: cmake --build build-deb --parallel $(nproc)
+
+      - name: Package DEB
+        working-directory: build-deb
+        run: cpack -G DEB
+
+      # ── .tar.gz ───────────────────────────────────────────────────────────
+      - name: Configure (TGZ)
+        run: |
+          cmake -S . -B build-tgz \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DENABLE_CONAN=OFF \
+            -DENABLE_PYTHON=OFF \
+            -DENABLE_PERF_TESTING=OFF \
+            -DENABLE_PACKAGING=ON \
+            -DVBZ_BUILD_ARCHIVE=ON
+
+      - name: Build (TGZ)
+        run: cmake --build build-tgz --parallel $(nproc)
+
+      - name: Package TGZ
+        working-directory: build-tgz
+        run: cpack -G TGZ
+
+      - name: Collect Linux plugin artifacts
+        run: |
+          mkdir -p dist
+          cp build-deb/*.deb dist/
+          cp build-tgz/*.tar.gz dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plugin-linux
+          path: dist/
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # macOS: .pkg + .tar.gz
+  # ─────────────────────────────────────────────────────────────────────────────
+  build-plugin-macos:
+    name: Plugin (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: brew install hdf5 zstd
+
+      - name: Export Homebrew prefix
+        run: echo "BREW_PREFIX=$(brew --prefix)" >> "$GITHUB_ENV"
+
+      # ── .pkg ──────────────────────────────────────────────────────────────
+      - name: Configure (PKG)
+        run: |
+          cmake -S . -B build-pkg \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DENABLE_CONAN=OFF \
+            -DENABLE_PYTHON=OFF \
+            -DENABLE_PERF_TESTING=OFF \
+            -DENABLE_PACKAGING=ON \
+            -DVBZ_BUILD_ARCHIVE=OFF \
+            -DCMAKE_PREFIX_PATH="${{ env.BREW_PREFIX }}"
+
+      - name: Build (PKG)
+        run: cmake --build build-pkg --parallel $(sysctl -n hw.logicalcpu)
+
+      - name: Package PKG
+        working-directory: build-pkg
+        run: cpack -G productbuild
+
+      # ── .tar.gz ───────────────────────────────────────────────────────────
+      - name: Configure (TGZ)
+        run: |
+          cmake -S . -B build-tgz \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DENABLE_CONAN=OFF \
+            -DENABLE_PYTHON=OFF \
+            -DENABLE_PERF_TESTING=OFF \
+            -DENABLE_PACKAGING=ON \
+            -DVBZ_BUILD_ARCHIVE=ON \
+            -DCMAKE_PREFIX_PATH="${{ env.BREW_PREFIX }}"
+
+      - name: Build (TGZ)
+        run: cmake --build build-tgz --parallel $(sysctl -n hw.logicalcpu)
+
+      - name: Package TGZ
+        working-directory: build-tgz
+        run: cpack -G TGZ
+
+      - name: Collect macOS plugin artifacts
+        run: |
+          mkdir -p dist
+          cp build-pkg/*.pkg dist/
+          cp build-tgz/*.tar.gz dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plugin-macos
+          path: dist/
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Windows: .msi
+  # ─────────────────────────────────────────────────────────────────────────────
+  build-plugin-windows:
+    name: Plugin (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install vcpkg dependencies
+        run: |
+          vcpkg install hdf5:x64-windows zstd:x64-windows
+        env:
+          VCPKG_DEFAULT_TRIPLET: x64-windows
+
+      - name: Configure (MSI)
+        shell: bash
+        run: |
+          cmake -S . -B build-msi \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DENABLE_CONAN=OFF \
+            -DENABLE_PYTHON=OFF \
+            -DENABLE_PERF_TESTING=OFF \
+            -DENABLE_PACKAGING=ON \
+            -DVBZ_BUILD_ARCHIVE=OFF \
+            -DCMAKE_TOOLCHAIN_FILE="$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+
+      - name: Build (MSI)
+        run: cmake --build build-msi --config Release --parallel
+
+      - name: Package MSI
+        working-directory: build-msi
+        run: cpack -G WIX -C Release
+
+      - name: Collect Windows plugin artifacts
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp build-msi/*.msi dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plugin-windows
+          path: dist/
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # pyvbz wheel — Linux
+  # ─────────────────────────────────────────────────────────────────────────────
+  build-pyvbz-linux:
+    name: pyvbz wheel (Linux)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake libzstd-dev python3.11-dev
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python build deps
+        run: pip install cffi wheel numpy setuptools
+
+      # Build only the vbz static library (no HDF5, no packaging, no Python target)
+      - name: Build libvbz
+        run: |
+          cmake -S . -B build-vbz \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DENABLE_CONAN=OFF \
+            -DENABLE_PYTHON=OFF \
+            -DENABLE_PERF_TESTING=OFF \
+            -DENABLE_PACKAGING=OFF
+          cmake --build build-vbz --target vbz --parallel $(nproc)
+
+      - name: Locate zstd shared library
+        run: echo "ZSTD_LIB=$(dpkg -L libzstd-dev | grep '\.so$' | head -1)" >> "$GITHUB_ENV"
+
+      - name: Build pyvbz wheel
+        working-directory: python/pyvbz
+        env:
+          VBZ_INCLUDE_PATHS: ${{ github.workspace }}/vbz;${{ github.workspace }}/build-vbz/vbz;${{ github.workspace }}/build-vbz/streamvbyte_lib/include
+          VBZ_LINK_LIBS: ${{ github.workspace }}/build-vbz/lib/libvbz.a;${{ github.workspace }}/build-vbz/streamvbyte_lib/lib/libstreamvbyte.a;${{ env.ZSTD_LIB }}
+        run: python setup.py bdist_wheel
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pyvbz-linux
+          path: python/pyvbz/dist/*.whl
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # pyvbz wheel — macOS
+  # ─────────────────────────────────────────────────────────────────────────────
+  build-pyvbz-macos:
+    name: pyvbz wheel (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install system dependencies
+        run: brew install zstd
+
+      - name: Export Homebrew prefix
+        run: echo "BREW_PREFIX=$(brew --prefix)" >> "$GITHUB_ENV"
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python build deps
+        run: pip install cffi wheel numpy setuptools
+
+      # Build only the vbz static library
+      - name: Build libvbz
+        run: |
+          cmake -S . -B build-vbz \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DENABLE_CONAN=OFF \
+            -DENABLE_PYTHON=OFF \
+            -DENABLE_PERF_TESTING=OFF \
+            -DENABLE_PACKAGING=OFF \
+            -DCMAKE_PREFIX_PATH="${{ env.BREW_PREFIX }}"
+          cmake --build build-vbz --target vbz --parallel $(sysctl -n hw.logicalcpu)
+
+      - name: Locate zstd static library
+        run: echo "ZSTD_LIB=$(brew --prefix zstd)/lib/libzstd.a" >> "$GITHUB_ENV"
+
+      - name: Build pyvbz wheel
+        working-directory: python/pyvbz
+        env:
+          VBZ_INCLUDE_PATHS: ${{ github.workspace }}/vbz;${{ github.workspace }}/build-vbz/vbz;${{ github.workspace }}/build-vbz/streamvbyte_lib/include
+          VBZ_LINK_LIBS: ${{ github.workspace }}/build-vbz/lib/libvbz.a;${{ github.workspace }}/build-vbz/streamvbyte_lib/lib/libstreamvbyte.a;${{ env.ZSTD_LIB }}
+        run: python setup.py bdist_wheel
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pyvbz-macos
+          path: python/pyvbz/dist/*.whl
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Create GitHub Release and upload all artifacts
+  # ─────────────────────────────────────────────────────────────────────────────
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-22.04
+    needs:
+      - build-plugin-linux
+      - build-plugin-macos
+      - build-plugin-windows
+      - build-pyvbz-linux
+      - build-pyvbz-macos
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+          merge-multiple: true
+
+      - name: List artifacts
+        run: find artifacts/ -type f | sort
+
+      - uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: artifacts/**
+          generate_release_notes: true
+          fail_on_unmatched_files: true
