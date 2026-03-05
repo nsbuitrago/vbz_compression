@@ -33,7 +33,8 @@ jobs:
             -DENABLE_PYTHON=OFF \
             -DENABLE_PERF_TESTING=OFF \
             -DENABLE_PACKAGING=ON \
-            -DVBZ_BUILD_ARCHIVE=OFF
+            -DVBZ_BUILD_ARCHIVE=OFF \
+            -DSTANDARD_LIB_INSTALL=OFF
 
       - name: Build (DEB)
         run: cmake --build build-deb --parallel $(nproc)
@@ -51,7 +52,8 @@ jobs:
             -DENABLE_PYTHON=OFF \
             -DENABLE_PERF_TESTING=OFF \
             -DENABLE_PACKAGING=ON \
-            -DVBZ_BUILD_ARCHIVE=ON
+            -DVBZ_BUILD_ARCHIVE=ON \
+            -DSTANDARD_LIB_INSTALL=OFF
 
       - name: Build (TGZ)
         run: cmake --build build-tgz --parallel $(nproc)
@@ -99,6 +101,7 @@ jobs:
             -DENABLE_PERF_TESTING=OFF \
             -DENABLE_PACKAGING=ON \
             -DVBZ_BUILD_ARCHIVE=OFF \
+            -DSTANDARD_LIB_INSTALL=OFF \
             -DCMAKE_PREFIX_PATH="${{ env.BREW_PREFIX }}"
 
       - name: Build (PKG)
@@ -118,6 +121,7 @@ jobs:
             -DENABLE_PERF_TESTING=OFF \
             -DENABLE_PACKAGING=ON \
             -DVBZ_BUILD_ARCHIVE=ON \
+            -DSTANDARD_LIB_INSTALL=OFF \
             -DCMAKE_PREFIX_PATH="${{ env.BREW_PREFIX }}"
 
       - name: Build (TGZ)
@@ -166,6 +170,7 @@ jobs:
             -DENABLE_PERF_TESTING=OFF \
             -DENABLE_PACKAGING=ON \
             -DVBZ_BUILD_ARCHIVE=OFF \
+            -DSTANDARD_LIB_INSTALL=OFF \
             -DCMAKE_TOOLCHAIN_FILE="$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
 
       - name: Build (MSI)

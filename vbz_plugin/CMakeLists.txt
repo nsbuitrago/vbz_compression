@@ -68,10 +68,6 @@ if (BUILD_TESTING)
     endif()
 endif()
 
-if (NOT VBZ_BUILD_ARCHIVE)
-    set(VBZ_PLUGIN_COMPONENT COMPONENT hdf_plugin)
-endif()
-
 set(INSTALL_DESTINATION "hdf5/lib/plugin")
 if (STANDARD_LIB_INSTALL)
     set(VBZ_PLUGIN_COMPONENT COMPONENT vbz_hdf_plugin)
@@ -87,6 +83,8 @@ if (STANDARD_LIB_INSTALL)
     endif()
 elseif (VBZ_BUILD_ARCHIVE)
     set(INSTALL_DESTINATION "bin")
+else()
+    set(VBZ_PLUGIN_COMPONENT COMPONENT hdf_plugin)
 endif()
 
 install(
